@@ -1,0 +1,10 @@
+{
+  "id": "folder-counts",
+  "name": "Folder Counts",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.4",
+  "description": "Show how many notes or files each folder holds in the file explorer, with a vault total, file type filters and folder exclusions.",
+  "author": "Siulved54",
+  "authorUrl": "https://github.com/perezamadorluisenrique-gif",
+  "isDesktopOnly": false
+}
