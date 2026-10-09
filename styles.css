@@ -24,3 +24,8 @@
 body:not(.folder-counts-show-expanded) .nav-folder:not(.is-collapsed) > .nav-folder-title > .folder-counts-badge.has-subfolders {
   display: none;
 }
+
+/* Words are still being counted in the background: the number is not final yet. */
+.folder-counts-badge.is-pending {
+  font-style: italic;
+}

@@ -1,6 +1,6 @@
 {
   "name": "folder-counts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Folder Counts for Obsidian - Show how many notes or files each folder holds in the file explorer, with a vault total, file type filters and folder exclusions.",
   "main": "main.js",
   "scripts": {
