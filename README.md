@@ -16,7 +16,7 @@ Works on desktop and mobile.
 
 | Setting | Default | What it does |
 |---|---|---|
-| What to count | Notes | Notes (Markdown files), all files, or only the file types you list. |
+| What to count | Notes | Notes (Markdown files), all files, only the file types you list, the total words of your notes, or the total size of your files. |
 | Extensions | `md` | With "Files with these extensions": the types to count, such as `md, canvas, pdf`. |
 | Count everything except these | off | Turns the extension list into a list of types to skip. |
 | Include subfolders | on | Count everything below a folder, or only the files directly inside it. |
@@ -28,11 +28,30 @@ Works on desktop and mobile.
 |---|---|---|
 | Show counts on expanded folders | off | An open folder with subfolders hides its number, since its contents are on screen. Turn on to always show it. |
 | Hide zero counts | off | Leave empty folders blank. |
-| Compact numbers | off | `1.2k` instead of `1234`. |
-| Vault total in the status bar | off | How many notes (or files) the whole vault holds. |
+| Compact numbers | off | `1.2k` instead of `1234`. Applies to counts and words; sizes are always short (`12 KB`, `3.4 MB`). |
+| Vault total in the status bar | off | What the whole vault holds, following what you count: notes, files, words or size. |
 
 Right-click a folder and choose **Exclude from folder counts** to add it to
 the excluded list, or **Count this folder again** to take it off.
+
+## Words and sizes
+
+Choose **Words in notes** under "What to count" and each folder shows the
+total words of the notes inside it, the way writers track a project. Choose
+**Size of files** to see how much space a folder takes, as `12 KB` or
+`3.4 MB`. Hover a number for the breakdown, for example
+"12400 words in total · 18 notes · 96 KB · 2 subfolders".
+
+How words are counted: front matter, fenced code blocks and `%%comments%%`
+are skipped; a link like `[[Note|shown text]]` counts the text you see;
+embeds and image links count nothing; each Chinese, Japanese kana or Kanji
+character counts as one word.
+
+Words are read from your notes in the background, a few at a time, so a big
+vault never stalls Obsidian. Numbers still being counted are shown in italics
+and fill in as the reading goes. Each note is read once and remembered until
+it changes. Editing a note updates its folder a moment after you pause.
+Size mode needs no reading at all.
 
 ## Commands
 
@@ -55,7 +74,7 @@ each folder will show two numbers.
 ## How it works
 
 The whole vault is counted in one pass over Obsidian's file tree (no file is
-opened or read), then each folder's number is placed in the explorer. Changes
+opened or read, except in words mode), then each folder's number is placed in the explorer. Changes
 are collected for a moment and counted once, so a sync that brings in a
 thousand files costs one recount, not a thousand.
 

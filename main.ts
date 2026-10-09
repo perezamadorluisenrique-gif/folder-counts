@@ -5,6 +5,7 @@ import {
   PluginSettingTab,
   Setting,
   TAbstractFile,
+  TFile,
   TFolder,
   WorkspaceLeaf,
   debounce,
@@ -15,15 +16,17 @@ import type { SettingDefinitionItem } from 'obsidian';
 import {
   countTree,
   describe,
-  formatCount,
+  emptyCount,
+  formatAmount,
   fromLegacy,
   parseExtensions,
   parseFolders,
   shownCount,
+  statusText,
   toggleFolder,
-  unitName,
 } from './src/count.ts';
-import type { CountMode, CountOptions, FolderCount, LegacySettings } from './src/count.ts';
+import type { CountMode, CountOptions, FolderCount, LegacySettings, TreeFile } from './src/count.ts';
+import { WordCache, countWords } from './src/words.ts';
 
 interface FolderCountsSettings extends CountOptions {
   /** Keep the number on an expanded folder that has subfolders. */
@@ -69,11 +72,18 @@ const MODES: Record<CountMode, string> = {
   notes: 'Notes (Markdown files)',
   files: 'All files',
   custom: 'Files with these extensions',
+  words: 'Words in notes',
+  size: 'Size of files',
 };
+
+/** Notes read per batch when counting words, and the pause between batches. */
+const WORD_BATCH = 20;
+/** Typing saves a note every couple of seconds; recount words once it has been quiet this long. */
+const MODIFY_DELAY = 1500;
 
 /** Names and descriptions shared by the 1.13+ declarative tab and the older `display()`. */
 const TEXT = {
-  mode: { name: 'What to count', desc: 'Notes only, every file, or the file types you list below.' },
+  mode: { name: 'What to count', desc: 'Notes, every file, the file types you list below, the total words of the notes, or the total size of the files.' },
   extensions: {
     name: 'Extensions',
     desc: 'Separated by commas or spaces, without the dot. For example: md, canvas, pdf.',
@@ -89,7 +99,7 @@ const TEXT = {
   },
   hideZero: { name: 'Hide zero counts', desc: 'Leave folders with nothing to count blank.' },
   compact: { name: 'Compact numbers', desc: 'Show 1.2k instead of 1234.' },
-  showVaultTotal: { name: 'Vault total in the status bar', desc: 'Show how many notes or files the whole vault holds.' },
+  showVaultTotal: { name: 'Vault total in the status bar', desc: 'Show what the whole vault holds: notes, files, words or size, following what you count.' },
   excludedFolders: {
     name: 'Excluded folders',
     desc: 'One folder path per line. Their contents are not counted anywhere. Wildcards work: Archive/** or **/attachments. You can also right-click a folder.',
@@ -105,9 +115,16 @@ export default class FolderCountsPlugin extends Plugin {
   private counts = new Map<string, FolderCount>();
   private statusEl: HTMLElement | null = null;
   private enabled = true;
+  private words = new WordCache();
+  /** Notes whose words are not known yet; the background job drains it. */
+  private pending: TreeFile[] = [];
+  private wordsJobRunning = false;
+  private lastPaint = 0;
 
   /** Vault events arrive in bursts (a sync, a folder move); count once they settle. */
   private scheduleRefresh = debounce(() => this.refresh(), 200, true);
+  /** Edits to a note change its words and size, but only matter in those modes. */
+  private scheduleModifyRefresh = debounce(() => this.refresh(), MODIFY_DELAY, true);
 
   async onload() {
     await this.loadSettings();
@@ -149,8 +166,23 @@ export default class FolderCountsPlugin extends Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.refresh();
       this.registerEvent(this.app.vault.on('create', () => this.scheduleRefresh()));
-      this.registerEvent(this.app.vault.on('delete', () => this.scheduleRefresh()));
-      this.registerEvent(this.app.vault.on('rename', () => this.scheduleRefresh()));
+      this.registerEvent(
+        this.app.vault.on('delete', (file) => {
+          this.words.delete(file.path);
+          this.scheduleRefresh();
+        }),
+      );
+      this.registerEvent(
+        this.app.vault.on('rename', (file, oldPath) => {
+          this.words.rename(oldPath, file.path);
+          this.scheduleRefresh();
+        }),
+      );
+      this.registerEvent(
+        this.app.vault.on('modify', (file) => {
+          if (file instanceof TFile && (this.settings.mode === 'words' || this.settings.mode === 'size')) this.scheduleModifyRefresh();
+        }),
+      );
       // A file explorer opened later (or re-created by a workspace change) starts without badges.
       this.registerEvent(this.app.workspace.on('layout-change', () => this.paint()));
       void this.offerLegacyImport();
@@ -158,8 +190,9 @@ export default class FolderCountsPlugin extends Plugin {
   }
 
   onunload() {
+    this.enabled = false;
     this.clearBadges();
-    document.body.removeClass('folder-counts-show-expanded');
+    activeDocument.body.removeClass('folder-counts-show-expanded');
   }
 
   async loadSettings() {
@@ -174,7 +207,7 @@ export default class FolderCountsPlugin extends Plugin {
   }
 
   private applyBodyClasses() {
-    document.body.toggleClass('folder-counts-show-expanded', this.settings.showOnExpanded);
+    activeDocument.body.toggleClass('folder-counts-show-expanded', this.settings.showOnExpanded);
   }
 
   async toggleExcluded(path: string) {
@@ -192,9 +225,50 @@ export default class FolderCountsPlugin extends Plugin {
   /** Count the whole vault in one pass, then draw. */
   refresh() {
     if (!this.enabled) return;
-    this.counts = countTree(this.app.vault.getRoot(), this.settings);
+    const pending: TreeFile[] = [];
+    this.counts = countTree(
+      this.app.vault.getRoot(),
+      this.settings,
+      (file) => this.words.get(file.path, file.stat?.mtime ?? 0),
+      pending,
+    );
+    this.pending = pending;
+    this.lastPaint = Date.now();
     this.paint();
     this.updateStatusBar();
+    if (pending.length > 0) void this.countWordsInBackground();
+  }
+
+  /**
+   * Read the notes whose words are unknown a few at a time, handing the
+   * thread back between batches so a big vault never freezes the app, and
+   * redraw now and then so the numbers fill in as they go.
+   */
+  private async countWordsInBackground() {
+    if (this.wordsJobRunning) return;
+    this.wordsJobRunning = true;
+    try {
+      while (this.enabled && this.settings.mode === 'words' && this.pending.length > 0) {
+        const batch = this.pending.splice(0, WORD_BATCH);
+        for (const item of batch) {
+          const file = this.app.vault.getAbstractFileByPath(item.path);
+          if (!(file instanceof TFile)) continue;
+          const mtime = file.stat.mtime;
+          try {
+            this.words.set(file.path, mtime, countWords(await this.app.vault.cachedRead(file)));
+          } catch {
+            // Unreadable: remember it as empty until it changes, so it is not retried in a loop.
+            this.words.set(file.path, mtime, 0);
+          }
+        }
+        if (Date.now() - this.lastPaint > 400 && this.pending.length > 0) this.refresh();
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 10));
+      }
+    } finally {
+      this.wordsJobRunning = false;
+    }
+    // Whatever was read last, or changed on the way, goes up now.
+    if (this.enabled && this.settings.mode === 'words') this.refresh();
   }
 
   /** Put the current counts on every folder of every file explorer. */
@@ -217,7 +291,8 @@ export default class FolderCountsPlugin extends Plugin {
       return;
     }
     if (!badge) badge = selfEl.createDiv({ cls: BADGE });
-    const text = formatCount(n, this.settings.compact);
+    const text = formatAmount(n, this.settings, this.settings.compact);
+    badge.toggleClass('is-pending', (this.settings.recursive ? count.totalTally : count.directTally).pending > 0);
     if (badge.textContent !== text) badge.setText(text);
     badge.toggleClass('has-subfolders', count.subfolders > 0);
     const tooltip = describe(count, this.settings);
@@ -242,11 +317,9 @@ export default class FolderCountsPlugin extends Plugin {
     }
     this.statusEl ??= this.addStatusBarItem();
     this.statusEl.addClass('folder-counts-status');
-    const total = this.counts.get('/')?.total ?? 0;
-    this.statusEl.setText(`${formatCount(total, this.settings.compact)} ${unitName(this.settings.mode, total)}`);
-    setTooltip(this.statusEl, `Folder Counts: ${describe(this.counts.get('/') ?? { direct: 0, total: 0, subfolders: 0, otherFiles: 0 }, this.settings)} in this vault`, {
-      placement: 'top',
-    });
+    const root = this.counts.get('/') ?? emptyCount();
+    this.statusEl.setText(statusText(root, this.settings, this.settings.compact));
+    setTooltip(this.statusEl, `Folder Counts: ${describe(root, this.settings)} in this vault`, { placement: 'top' });
   }
 
   private async readLegacy(): Promise<LegacySettings | null> {

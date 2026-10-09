@@ -4,6 +4,11 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## Unreleased
+
+- New "What to count" modes: total words of the notes in a folder (skipping front matter, code blocks and comments, counting each CJK character), and total size of the files (`12 KB`, `3.4 MB`). The hover breakdown and the status-bar total follow the mode.
+- Words are read in the background and remembered until a note changes, so large vaults stay responsive.
+
 ## 0.1.0
 
 - A number beside every folder in the file explorer: how many notes, files or chosen file types it holds, with or without its subfolders. Hover it for the breakdown.
