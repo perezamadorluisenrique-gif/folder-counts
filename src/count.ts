@@ -1,6 +1,8 @@
 // Pure logic: no `obsidian` import, so tests/ can run it under plain Node.
 // The tree is described structurally, so a TFolder from the vault fits it as is.
 
+import { t } from './i18n.ts';
+
 export interface TreeItem {
   path: string;
   /** Set on files. */
@@ -227,8 +229,11 @@ export function formatCount(n: number, compact: boolean): string {
   return String(n);
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`;
+type Noun = 'notes' | 'words' | 'files' | 'subfolders' | 'otherFiles';
+
+/** "1 note", "3 notes": the noun in the app's language. `shown` stands for `n` when it is written differently, as `1.2k`. */
+function amountOf(noun: Noun, n: number, shown = String(n)): string {
+  return n === 1 ? t(`count.${noun}.one`) : t(`count.${noun}.other`, { count: shown });
 }
 
 /** Bytes as `512 B`, `12 KB`, `3.4 MB` (1024-based; one decimal below 10, none above). */
@@ -252,11 +257,16 @@ export function formatAmount(n: number, options: Pick<CountOptions, 'mode'>, com
   return options.mode === 'size' ? formatSize(n) : formatCount(n, compact);
 }
 
-/** The unit counted, for the tooltip and the status bar. */
-export function unitName(mode: CountMode, n: number): string {
-  if (mode === 'notes') return n === 1 ? 'note' : 'notes';
-  if (mode === 'words') return n === 1 ? 'word' : 'words';
-  return n === 1 ? 'file' : 'files';
+/** What is counted, as a noun: notes, words, or files. */
+function nounFor(mode: CountMode): Noun {
+  if (mode === 'notes') return 'notes';
+  if (mode === 'words') return 'words';
+  return 'files';
+}
+
+/** `n` of what the mode counts, for the tooltip and the status bar: "3 notes", "1 word". */
+export function countPhrase(mode: CountMode, n: number, shown?: string): string {
+  return amountOf(nounFor(mode), n, shown);
 }
 
 /** The vault total for the status bar: `1.2k notes`, `48k words`, `3.4 MB`. */
@@ -264,31 +274,31 @@ export function statusText(count: FolderCount, options: CountOptions, compact: b
   const n = shownCount(count, options.recursive);
   if (options.mode === 'size') return formatSize(n);
   const tally = options.recursive ? count.totalTally : count.directTally;
-  return `${formatCount(n, compact)} ${unitName(options.mode, n)}${tally.pending > 0 ? ' …' : ''}`;
+  return `${countPhrase(options.mode, n, formatCount(n, compact))}${tally.pending > 0 ? ' …' : ''}`;
 }
 
 /** Tooltip text: what the number means and what else the folder holds. */
 export function describe(count: FolderCount, options: CountOptions): string {
   const parts: string[] = [];
   const tally = options.recursive ? count.totalTally : count.directTally;
-  const scope = options.recursive ? 'in total' : 'directly inside';
+  const where = (amount: string) => t(options.recursive ? 'tooltip.inTotal' : 'tooltip.directlyInside', { amount });
   if (options.mode === 'words') {
-    parts.push(`${plural(shownCount(count, options.recursive), 'word', 'words')} ${scope}`);
-    parts.push(plural(tally.files, 'note', 'notes'));
+    parts.push(where(amountOf('words', shownCount(count, options.recursive))));
+    parts.push(amountOf('notes', tally.files));
     parts.push(formatSize(tally.bytes));
-    if (tally.pending > 0) parts.push(`still counting ${plural(tally.pending, 'note', 'notes')}`);
+    if (tally.pending > 0) parts.push(t('tooltip.stillCounting', { notes: amountOf('notes', tally.pending) }));
   } else if (options.mode === 'size') {
-    parts.push(`${formatSize(shownCount(count, options.recursive))} ${scope}`);
-    parts.push(plural(tally.files, 'file', 'files'));
+    parts.push(where(formatSize(shownCount(count, options.recursive))));
+    parts.push(amountOf('files', tally.files));
   } else if (options.recursive) {
-    parts.push(`${count.total} ${unitName(options.mode, count.total)} in total`);
-    if (count.subfolders > 0) parts.push(`${count.direct} directly inside`);
+    parts.push(t('tooltip.inTotal', { amount: countPhrase(options.mode, count.total) }));
+    if (count.subfolders > 0) parts.push(t('tooltip.directlyInside', { amount: String(count.direct) }));
   } else {
-    parts.push(`${count.direct} ${unitName(options.mode, count.direct)} directly inside`);
+    parts.push(t('tooltip.directlyInside', { amount: countPhrase(options.mode, count.direct) }));
   }
-  if (count.subfolders > 0) parts.push(plural(count.subfolders, 'subfolder', 'subfolders'));
+  if (count.subfolders > 0) parts.push(amountOf('subfolders', count.subfolders));
   const showOthers = options.mode !== 'files' && options.mode !== 'size';
-  if (count.otherFiles > 0 && showOthers) parts.push(plural(count.otherFiles, 'other file', 'other files'));
+  if (count.otherFiles > 0 && showOthers) parts.push(amountOf('otherFiles', count.otherFiles));
   return parts.join(' · ');
 }
 

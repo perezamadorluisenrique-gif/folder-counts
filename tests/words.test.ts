@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { WordCache, countWords, stripComments, stripFencedCode, stripFrontMatter } from '../src/words.ts';
-import { DEFAULT_OPTIONS, countTree, describe, formatAmount, formatSize, statusText, unitName } from '../src/count.ts';
+import { DEFAULT_OPTIONS, countTree, describe, formatAmount, formatSize, statusText, countPhrase } from '../src/count.ts';
 import type { CountOptions, TreeFile, TreeFolder } from '../src/count.ts';
 
 test('plain words', () => {
@@ -138,7 +138,8 @@ test('status bar text follows the mode', () => {
   assert.equal(statusText(words.get('/')!, opts({ mode: 'words' }), false), '35 words');
   const some = countTree(vault, opts({ mode: 'words' }), (f) => (f.path === 'top.md' ? 1 : undefined));
   assert.equal(statusText(some.get('/')!, opts({ mode: 'words' }), false), '1 word …');
-  assert.equal(unitName('words', 1), 'word');
+  assert.equal(countPhrase('words', 1), '1 word');
+  assert.equal(countPhrase('notes', 12000, '12k'), '12k notes');
   const notes = countTree(vault, opts({}));
   assert.equal(statusText(notes.get('/')!, opts({}), false), '3 notes');
 });
