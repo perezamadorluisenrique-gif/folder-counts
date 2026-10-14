@@ -10,6 +10,8 @@ files. Hover a number to see what is behind it, for example
 
 Works on desktop and mobile.
 
+**Interface languages:** English, 简体中文, 日本語, 한국어, Español, Deutsch, Français, Português (Brasil) and Русский, following Obsidian's language setting. A translation that reads wrong? [Open an issue](https://github.com/perezamadorluisenrique-gif/folder-counts/issues/new/choose) with the text and what it should say.
+
 ## Settings
 
 **Counting**

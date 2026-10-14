@@ -26,6 +26,7 @@ import {
   toggleFolder,
 } from './src/count.ts';
 import type { CountMode, CountOptions, FolderCount, LegacySettings, TreeFile } from './src/count.ts';
+import { t } from './src/i18n.ts';
 import { WordCache, countWords } from './src/words.ts';
 
 interface FolderCountsSettings extends CountOptions {
@@ -69,11 +70,11 @@ interface ExplorerView {
 }
 
 const MODES: Record<CountMode, string> = {
-  notes: 'Notes (Markdown files)',
-  files: 'All files',
-  custom: 'Files with these extensions',
-  words: 'Words in notes',
-  size: 'Size of files',
+  notes: t('mode.notes'),
+  files: t('mode.files'),
+  custom: t('mode.custom'),
+  words: t('mode.words'),
+  size: t('mode.size'),
 };
 
 /** Notes read per batch when counting words, and the pause between batches. */
@@ -83,31 +84,16 @@ const MODIFY_DELAY = 1500;
 
 /** Names and descriptions shared by the 1.13+ declarative tab and the older `display()`. */
 const TEXT = {
-  mode: { name: 'What to count', desc: 'Notes, every file, the file types you list below, the total words of the notes, or the total size of the files.' },
-  extensions: {
-    name: 'Extensions',
-    desc: 'Separated by commas or spaces, without the dot. For example: md, canvas, pdf.',
-  },
-  excludeExtensions: { name: 'Count everything except these', desc: 'Turn the list above into a list of file types to skip.' },
-  recursive: {
-    name: 'Include subfolders',
-    desc: 'Count everything below a folder. Turn off to count only the files directly inside it.',
-  },
-  showOnExpanded: {
-    name: 'Show counts on expanded folders',
-    desc: 'By default an open folder with subfolders hides its number, since its contents are on screen.',
-  },
-  hideZero: { name: 'Hide zero counts', desc: 'Leave folders with nothing to count blank.' },
-  compact: { name: 'Compact numbers', desc: 'Show 1.2k instead of 1234.' },
-  showVaultTotal: { name: 'Vault total in the status bar', desc: 'Show what the whole vault holds: notes, files, words or size, following what you count.' },
-  excludedFolders: {
-    name: 'Excluded folders',
-    desc: 'One folder path per line. Their contents are not counted anywhere. Wildcards work: Archive/** or **/attachments. You can also right-click a folder.',
-  },
-  legacy: {
-    name: 'Import from File Explorer Note Count',
-    desc: 'Copy the settings of the original plugin, if it is installed in this vault.',
-  },
+  mode: { name: t('setting.mode.name'), desc: t('setting.mode.desc') },
+  extensions: { name: t('setting.extensions.name'), desc: t('setting.extensions.desc') },
+  excludeExtensions: { name: t('setting.excludeExtensions.name'), desc: t('setting.excludeExtensions.desc') },
+  recursive: { name: t('setting.recursive.name'), desc: t('setting.recursive.desc') },
+  showOnExpanded: { name: t('setting.showOnExpanded.name'), desc: t('setting.showOnExpanded.desc') },
+  hideZero: { name: t('setting.hideZero.name'), desc: t('setting.hideZero.desc') },
+  compact: { name: t('setting.compact.name'), desc: t('setting.compact.desc') },
+  showVaultTotal: { name: t('setting.showVaultTotal.name'), desc: t('setting.showVaultTotal.desc') },
+  excludedFolders: { name: t('setting.excludedFolders.name'), desc: t('setting.excludedFolders.desc') },
+  legacy: { name: t('setting.legacy.name'), desc: t('setting.legacy.desc') },
 };
 
 export default class FolderCountsPlugin extends Plugin {
@@ -133,7 +119,7 @@ export default class FolderCountsPlugin extends Plugin {
 
     this.addCommand({
       id: 'toggle',
-      name: 'Show or hide the counts',
+      name: t('command.toggle'),
       icon: 'hash',
       callback: () => {
         this.enabled = !this.enabled;
@@ -144,7 +130,7 @@ export default class FolderCountsPlugin extends Plugin {
     });
     this.addCommand({
       id: 'refresh',
-      name: 'Recount all folders',
+      name: t('command.refresh'),
       icon: 'refresh-cw',
       callback: () => this.refresh(),
     });
@@ -155,7 +141,7 @@ export default class FolderCountsPlugin extends Plugin {
         const excluded = this.settings.excludedFolders.includes(file.path);
         menu.addItem((item) =>
           item
-            .setTitle(excluded ? 'Count this folder again' : 'Exclude from folder counts')
+            .setTitle(excluded ? t('menu.includeFolder') : t('menu.excludeFolder'))
             .setIcon(excluded ? 'eye' : 'eye-off')
             .setSection('action')
             .onClick(() => void this.toggleExcluded(file.path)),
@@ -319,7 +305,7 @@ export default class FolderCountsPlugin extends Plugin {
     this.statusEl.addClass('folder-counts-status');
     const root = this.counts.get('/') ?? emptyCount();
     this.statusEl.setText(statusText(root, this.settings, this.settings.compact));
-    setTooltip(this.statusEl, `Folder Counts: ${describe(root, this.settings)} in this vault`, { placement: 'top' });
+    setTooltip(this.statusEl, t('tooltip.vault', { description: describe(root, this.settings) }), { placement: 'top' });
   }
 
   private async readLegacy(): Promise<LegacySettings | null> {
@@ -345,7 +331,7 @@ export default class FolderCountsPlugin extends Plugin {
   private async offerLegacyImport() {
     if (this.settings.legacyChecked) return;
     const imported = await this.importLegacy();
-    if (imported) new Notice('Imported your settings from the original note count plugin. Turn that plugin off to avoid two numbers per folder.', 10000);
+    if (imported) new Notice(t('notice.adopted'), 10000);
     this.settings.legacyChecked = true;
     await this.saveData(this.settings);
   }
@@ -369,7 +355,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
     return [
       {
         type: 'group',
-        heading: 'Counting',
+        heading: t('heading.counting'),
         items: [
           { ...TEXT.mode, control: { type: 'dropdown', key: 'mode', options: MODES, defaultValue: DEFAULT_SETTINGS.mode } },
           {
@@ -391,7 +377,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
       },
       {
         type: 'group',
-        heading: 'Display',
+        heading: t('heading.display'),
         items: [
           { ...TEXT.showOnExpanded, control: { type: 'toggle', key: 'showOnExpanded', defaultValue: false } },
           { ...TEXT.hideZero, control: { type: 'toggle', key: 'hideZero', defaultValue: false } },
@@ -423,9 +409,9 @@ class FolderCountsSettingTab extends PluginSettingTab {
 
   private async importLegacy() {
     if (await this.plugin.importLegacy()) {
-      new Notice('Imported the settings of the original note count plugin.');
+      new Notice(t('notice.imported'));
       this.redraw();
-    } else new Notice('The original note count plugin has no settings in this vault.');
+    } else new Notice(t('notice.noLegacy'));
   }
 
   private redraw() {
@@ -449,7 +435,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     const s = this.plugin.settings;
     containerEl.empty();
-    new Setting(containerEl).setName('Counting').setHeading();
+    new Setting(containerEl).setName(t('heading.counting')).setHeading();
     new Setting(containerEl)
       .setName(TEXT.mode.name)
       .setDesc(TEXT.mode.desc)
@@ -477,7 +463,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
         t.setValue(String(this.getControlValue('excludedFolders'))).onChange((v) => this.setControlValue('excludedFolders', v));
         t.inputEl.rows = 4;
       });
-    new Setting(containerEl).setName('Display').setHeading();
+    new Setting(containerEl).setName(t('heading.display')).setHeading();
     this.toggle('showOnExpanded', TEXT.showOnExpanded);
     this.toggle('hideZero', TEXT.hideZero);
     this.toggle('compact', TEXT.compact);
@@ -485,7 +471,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName(TEXT.legacy.name)
       .setDesc(TEXT.legacy.desc)
-      .addButton((b) => b.setButtonText('Import').onClick(() => void this.importLegacy()));
+      .addButton((b) => b.setButtonText(t('setting.legacy.button')).onClick(() => void this.importLegacy()));
   }
 
   private toggle(key: keyof FolderCountsSettings, text: { name: string; desc: string }) {
