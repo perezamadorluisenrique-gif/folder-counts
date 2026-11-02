@@ -4,6 +4,10 @@ The release workflow uses the section named after the version being released
 as the release description, so every version needs one. `npm version <x.y.z>`
 renames the `Unreleased` heading below to that version.
 
+## 0.3.1
+
+- Settings: a link to more plugins, the optional Pro versions and template vaults (opens a web page when clicked).
+
 ## 0.3.0
 
 - Interface available in 8 more languages (Simplified Chinese, Japanese, Korean, Spanish, German, French, Brazilian Portuguese and Russian), following Obsidian's language setting.

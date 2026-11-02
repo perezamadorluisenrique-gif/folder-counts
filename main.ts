@@ -27,6 +27,7 @@ import {
 } from './src/count.ts';
 import type { CountMode, CountOptions, FolderCount, LegacySettings, TreeFile } from './src/count.ts';
 import { t } from './src/i18n.ts';
+import { moreText, openMore } from './src/more-link.ts';
 import { WordCache, countWords } from './src/words.ts';
 
 interface FolderCountsSettings extends CountOptions {
@@ -386,6 +387,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
         ],
       },
       { ...TEXT.legacy, action: () => void this.importLegacy() },
+      { name: moreText().name, desc: moreText().desc, action: () => openMore() },
     ];
   }
 
@@ -472,6 +474,11 @@ class FolderCountsSettingTab extends PluginSettingTab {
       .setName(TEXT.legacy.name)
       .setDesc(TEXT.legacy.desc)
       .addButton((b) => b.setButtonText(t('setting.legacy.button')).onClick(() => void this.importLegacy()));
+
+    new Setting(containerEl)
+      .setName(moreText().name)
+      .setDesc(moreText().desc)
+      .addButton((b) => b.setButtonText(moreText().button).onClick(() => openMore()));
   }
 
   private toggle(key: keyof FolderCountsSettings, text: { name: string; desc: string }) {
