@@ -27,8 +27,8 @@ import {
 } from './src/count.ts';
 import type { CountMode, CountOptions, FolderCount, LegacySettings, TreeFile } from './src/count.ts';
 import { t } from './src/i18n.ts';
-import { moreText, openMore } from './src/more-link.ts';
 import { WordCache, countWords } from './src/words.ts';
+import { moreDefinitions, renderMore } from './src/more-link.ts';
 
 interface FolderCountsSettings extends CountOptions {
   /** Keep the number on an expanded folder that has subfolders. */
@@ -387,7 +387,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
         ],
       },
       { ...TEXT.legacy, action: () => void this.importLegacy() },
-      { name: moreText().name, desc: moreText().desc, action: () => openMore() },
+      ...(moreDefinitions() as SettingDefinitionItem[]),
     ];
   }
 
@@ -431,6 +431,7 @@ class FolderCountsSettingTab extends PluginSettingTab {
   display(): void {
     this.legacy = true;
     this.draw();
+    renderMore(this.containerEl, (el) => new Setting(el));
   }
 
   private draw(): void {
@@ -475,10 +476,6 @@ class FolderCountsSettingTab extends PluginSettingTab {
       .setDesc(TEXT.legacy.desc)
       .addButton((b) => b.setButtonText(t('setting.legacy.button')).onClick(() => void this.importLegacy()));
 
-    new Setting(containerEl)
-      .setName(moreText().name)
-      .setDesc(moreText().desc)
-      .addButton((b) => b.setButtonText(moreText().button).onClick(() => openMore()));
   }
 
   private toggle(key: keyof FolderCountsSettings, text: { name: string; desc: string }) {
